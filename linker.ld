@@ -11,7 +11,8 @@ PHDRS
 
 SECTIONS
 {
-    . = 0xffffffffffe02000;
+    /* Было 0xffffffffffe02000, стало на 14МБ меньше */
+    . = 0xffffffffff002000; 
 
     .text : {
         KEEP(*(.text._start))
