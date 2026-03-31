@@ -56,3 +56,20 @@ ignore_irq_asm:
     out 0xA0, al  ; Говорим второму контроллеру (Slave), что закончили
     pop rax
     iretq
+
+global fast_memcpy
+
+fast_memcpy:
+    ; rdi = куда (dest - адрес видеопамяти)
+    ; rsi = откуда (src - ваш буфер в RAM)
+    ; rdx = сколько байт (count)
+    
+    shr rdx, 4          ; делим количество байт на 16 (так как копируем по 16)
+.loop:
+    movdqu xmm0, [rsi]  ; загружаем 16 байт из RAM в регистр XMM0
+    movdqu [rdi], xmm0  ; выгружаем 16 байт из XMM0 в видеопамять
+    add rsi, 16
+    add rdi, 16
+    dec rdx
+    jnz .loop
+    ret

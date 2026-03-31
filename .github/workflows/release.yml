@@ -1,0 +1,39 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential nasm binutils mtools \
+          parted qemu-utils qemu-system-x86 virtualbox --no-install-recommends
+
+      - name: Make
+        run: |
+          make clean || true
+          make
+
+      - name: VDI
+        run: make vdi
+
+      - name: Outputs
+        run: ls -lah
+
+      - name: Upload
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            mqos.img
+            mqos.vdi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

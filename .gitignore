@@ -2,3 +2,5 @@
 *.elf
 mqos.img
 mqos.iso
+images/
+mqos.vdi

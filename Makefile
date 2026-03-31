@@ -1,10 +1,9 @@
 CXX = g++
-AS = nasm        # Добавили ассемблер
+AS = nasm
 LD = ld
 IMAGE = mqos.img
 OVMF = /usr/share/ovmf/OVMF.fd
 
-# Флаги для ассемблера (64-битный эльф)
 ASFLAGS = -f elf64
 
 CXXFLAGS = -Wall -Wextra -ffreestanding -fno-stack-protector -fno-stack-check \
@@ -14,32 +13,28 @@ CXXFLAGS = -Wall -Wextra -ffreestanding -fno-stack-protector -fno-stack-check \
 
 LDFLAGS = -T linker.ld -nostdlib -z max-page-size=0x1000 -static
 
-# Добавляем interrupts.o в список объектов
-OBJS = kernel.o interrupts.o font.o wallpaper.o
+OBJS = kernel.o interrupts.o font.o wallpaper.o screen.o
 
 all: $(IMAGE)
 
-# Правило для компиляции C++
+screen.o: screen.cpp screen.hpp
+	$(CXX) $(CXXFLAGS) -c screen.cpp -o screen.o
+
 kernel.o: kernel.cpp
 	$(CXX) $(CXXFLAGS) -c kernel.cpp -o kernel.o
 
-# НОВОЕ: Правило для компиляции Ассемблера
 interrupts.o: interrupts.asm
 	$(AS) $(ASFLAGS) interrupts.asm -o interrupts.o
 
-kernel.elf: kernel.o interrupts.o
-	# Превращаем бинарники в объектные файлы
+kernel.elf: kernel.o interrupts.o screen.o
 	objcopy -I binary -O elf64-x86-64 -B i386 font.psf font.o
 	objcopy -I binary -O elf64-x86-64 -B i386 wallpaper.bin wallpaper.o
-	# Линкуем всё вместе
 	$(LD) $(LDFLAGS) $(OBJS) -o kernel.elf
 
-ISO_IMAGE = disk.iso
-
 $(IMAGE): kernel.elf BOOTX64.EFI
-	# ... твой существующий код создания disk.img ...
 	mkdir -p sys
 	cp kernel.elf sys/core
+	# cp images/wallpaper.
 	find sys | cpio -H newc -o > INITRD
 	rm -rf sys
 	dd if=/dev/zero of=$(IMAGE) bs=1M count=64
@@ -50,37 +45,13 @@ $(IMAGE): kernel.elf BOOTX64.EFI
 	mmd -i $(IMAGE)@@1048576 ::/BOOTBOOT
 	mcopy -i $(IMAGE)@@1048576 BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
 	mcopy -i $(IMAGE)@@1048576 INITRD ::/BOOTBOOT/INITRD
-	# echo "screen=1024x768" > CONFIG
 	echo "screen=1024x768" > CONFIG
 	mcopy -i $(IMAGE)@@1048576 CONFIG ::/BOOTBOOT/CONFIG
 	rm CONFIG INITRD
 
-# НОВАЯ ЧАСТЬ: Создание ISO
-iso: $(IMAGE)
-	# 1. Извлекаем FAT32 раздел
-	dd if=$(IMAGE) of=efiboot.img bs=1M skip=1
-	
-	# 2. Готовим структуру ISO
-	mkdir -p iso_root/BOOTBOOT
-	mkdir -p iso_root/EFI/BOOT
-	cp BOOTX64.EFI iso_root/EFI/BOOT/BOOTX64.EFI
-	
-	mkdir -p sys && cp kernel.elf sys/core
-	find sys | cpio -H newc -o > iso_root/BOOTBOOT/INITRD
-	rm -rf sys
-	echo "screen=1024x768" > iso_root/BOOTBOOT/CONFIG
-	
-	# ПЕРЕНОСИМ образ внутрь, чтобы xorriso его увидел
-	mv efiboot.img iso_root/efiboot.img
-	
-	# 3. Сборка (путь -e теперь относительно корня ISO)
-	xorriso -as mkisofs -R -f -e efiboot.img -no-emul-boot \
-		-o mqos.iso \
-		iso_root
-	
-	# Чистка
-	rm -rf iso_root
-
+vdi: $(IMAGE)
+	rm -f mqos.vdi
+	VBoxManage convertfromraw $(IMAGE) mqos.vdi --format VDI
 
 
 run: $(IMAGE)
